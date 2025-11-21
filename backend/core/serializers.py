@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, SkillListing, Transaction
+from .models import User, SkillListing, Transaction, ChatMessage
 
 
 # -----------------------------
@@ -47,5 +47,18 @@ class TransactionSerializer(serializers.ModelSerializer):
             "seller_verified_at",
             "buyer",
             "seller",
+            "created_at",
+        ]
+
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    sender = UserSerializer(read_only=True)
+
+    class Meta:
+        model = ChatMessage
+        fields = [
+            "id",
+            "sender",
+            "content",
             "created_at",
         ]
