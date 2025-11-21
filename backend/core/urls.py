@@ -5,6 +5,7 @@ from .views import (
     TransactionViewSet,
     RegisterView,
     UserMeView,
+    ChatThreadView,
 )
 
 router = DefaultRouter()
@@ -15,4 +16,5 @@ urlpatterns = [
     path("", include(router.urls)),
     path("users/register/", RegisterView.as_view()),
     path("user/me/", UserMeView.as_view()),
+    path("chat/listing/<int:listing_id>/thread/", ChatThreadView.as_view()),
 ]

@@ -2,9 +2,17 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.db.models import Q
+from rest_framework.exceptions import ValidationError
 
-from .models import User, SkillListing, Transaction
-from .serializers import UserSerializer, SkillListingSerializer, TransactionSerializer
+from .models import User, SkillListing, Transaction, ChatRoom, ChatMessage
+from .serializers import (
+    UserSerializer,
+    SkillListingSerializer,
+    TransactionSerializer,
+    ChatMessageSerializer,
+)
 
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -16,10 +24,21 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 class ListingViewSet(viewsets.ModelViewSet):
     queryset = SkillListing.objects.all().order_by("-created_at")
     serializer_class = SkillListingSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def perform_create(self, serializer):
         serializer.save(provider=self.request.user)
+
+    def perform_update(self, serializer):
+        listing = self.get_object()
+        if listing.provider != self.request.user:
+            raise ValidationError("You can only update your own listings.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.provider != self.request.user:
+            raise ValidationError("You can only delete your own listings.")
+        instance.delete()
 
 
 # -----------------------------------------------------
@@ -29,6 +48,12 @@ class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transaction.objects.all().order_by("-created_at")
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Transaction.objects.filter(
+            Q(buyer=user) | Q(seller=user)
+        ).order_by("-created_at")
 
     def perform_create(self, serializer):
         """
@@ -51,10 +76,10 @@ class TransactionViewSet(viewsets.ModelViewSet):
             tc_amount = listing.price_timecredits
 
             if tc_amount is None:
-                raise ValueError("Listing does not support Time Credit payment.")
+                raise ValidationError("Listing does not support Time Credit payment.")
 
             if buyer.time_credits < tc_amount:
-                raise ValueError("Not enough Time Credits to complete transaction.")
+                raise ValidationError("Not enough Time Credits to complete transaction.")
 
             # Deduct and credit TC
             buyer.time_credits -= tc_amount
@@ -93,6 +118,12 @@ class TransactionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["POST"])
     def submit_txnid(self, request, pk=None):
         txn = self.get_object()
+        if txn.buyer != request.user:
+            return Response({"error": "Only the buyer can submit transaction IDs."}, status=403)
+        if txn.payment_method != "UPI":
+            return Response({"error": "Transaction ID only applies to UPI payments."}, status=400)
+        if txn.buyer_txn_id:
+            return Response({"error": "Transaction ID already submitted."}, status=400)
         txn.buyer_txn_id = request.data.get("buyer_txn_id")
         txn.save()
         return Response({"status": "Transaction ID saved"})
@@ -104,6 +135,8 @@ class TransactionViewSet(viewsets.ModelViewSet):
 
         if txn.seller != request.user:
             return Response({"error": "Only seller can verify"}, status=403)
+        if txn.seller_verified:
+            return Response({"error": "Transaction already verified."}, status=400)
 
         txn.verify()
         return Response({"status": "Transaction verified"})
@@ -147,3 +180,38 @@ class UserMeView(APIView):
 
         user.save()
         return Response(UserSerializer(user).data)
+
+
+class ChatThreadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _get_room(self, listing):
+        room_name = f"listing-{listing.id}"
+        room, created = ChatRoom.objects.get_or_create(room_name=room_name, defaults={"listing": listing})
+        if not created and room.listing is None:
+            room.listing = listing
+            room.save(update_fields=["listing"])
+        return room
+
+    def get(self, request, listing_id):
+        listing = get_object_or_404(SkillListing, id=listing_id)
+        room = self._get_room(listing)
+        messages = room.messages.select_related("sender").order_by("-created_at")[:50]
+        serialized = ChatMessageSerializer(reversed(messages), many=True)
+        return Response(
+            {
+                "room": room.room_name,
+                "listing": listing_id,
+                "messages": serialized.data,
+            }
+        )
+
+    def post(self, request, listing_id):
+        listing = get_object_or_404(SkillListing, id=listing_id)
+        content = request.data.get("message", "").strip()
+        if not content:
+            return Response({"error": "Message cannot be empty."}, status=400)
+
+        room = self._get_room(listing)
+        msg = ChatMessage.objects.create(room=room, sender=request.user, content=content)
+        return Response(ChatMessageSerializer(msg).data, status=201)
