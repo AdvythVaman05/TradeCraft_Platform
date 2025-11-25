@@ -1,6 +1,7 @@
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
+from django.db.models import F
 
 
 # ----------------------------------------------------------
@@ -11,7 +12,7 @@ class User(AbstractUser):
     bio = models.TextField(blank=True)
     upi_id = models.CharField(max_length=200, blank=True, null=True)
     upi_qr = models.ImageField(upload_to="upi_qr/", blank=True, null=True)
-    time_credits = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    time_credits = models.DecimalField(max_digits=10, decimal_places=2, default=100)
 
 
     def __str__(self):
@@ -45,7 +46,7 @@ class Transaction(models.Model):
 
     payment_method = models.CharField(
         max_length=20,
-        choices=[("TC", "Time Credits"), ("UPI", "UPI")],
+        choices=[("TC", "Time Credits"), ("UPI", "UPI"), ("EX", "Exchange Skills")],
         default="UPI"
     )
 
@@ -54,13 +55,66 @@ class Transaction(models.Model):
 
     seller_verified = models.BooleanField(default=False)
     seller_verified_at = models.DateTimeField(blank=True, null=True)
+    seller_rejected = models.BooleanField(default=False)
+    seller_rejected_at = models.DateTimeField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     def verify(self):
-        self.seller_verified = True
-        self.seller_verified_at = timezone.now()
-        self.save()
+        # Defensive checks
+        if self.seller_verified:
+            raise ValueError('Transaction already verified.')
+        if self.seller_rejected:
+            raise ValueError('Transaction already rejected.')
+
+        # Use atomic transaction to avoid partial updates
+        with transaction.atomic():
+            # UPI: require buyer txn id before verification
+            if self.payment_method == 'UPI':
+                if not self.buyer_txn_id:
+                    raise ValueError('Buyer transaction id not submitted.')
+
+            # Time Credits: deduct TC now (ensure buyer has enough)
+            if self.payment_method == 'TC':
+                if self.tc_amount is None:
+                    raise ValueError('No time credit amount set for this transaction.')
+
+                # Attempt to deduct atomically using F expression; ensure enough balance
+                updated = User.objects.filter(pk=self.buyer.pk, time_credits__gte=self.tc_amount).update(
+                    time_credits=F('time_credits') - self.tc_amount
+                )
+                if not updated:
+                    raise ValueError('Buyer does not have enough Time Credits.')
+
+                # Credit seller if present
+                if self.seller:
+                    User.objects.filter(pk=self.seller.pk).update(
+                        time_credits=F('time_credits') + self.tc_amount
+                    )
+
+            # EX: business logic for exchange can be implemented elsewhere; here we just mark verified
+
+            # Mark verified & timestamps
+            self.seller_verified = True
+            self.seller_verified_at = timezone.now()
+            self.seller_rejected = False
+            self.seller_rejected_at = None
+            self.save(update_fields=[
+                'seller_verified', 'seller_verified_at', 'seller_rejected', 'seller_rejected_at'
+            ])
+
+    def reject(self):
+        # Mark rejected; reject should not perform any payment transfers
+        if self.seller_verified:
+            raise ValueError('Transaction already verified; cannot reject.')
+        if self.seller_rejected:
+            raise ValueError('Transaction already rejected.')
+
+        self.seller_rejected = True
+        self.seller_rejected_at = timezone.now()
+        self.seller_verified = False
+        self.seller_verified_at = None
+        self.save(update_fields=['seller_rejected', 'seller_rejected_at', 'seller_verified', 'seller_verified_at'])
 
     def __str__(self):
         return f"Transaction {self.id}"
@@ -68,6 +122,7 @@ class Transaction(models.Model):
 class ChatRoom(models.Model):
     room_name = models.CharField(max_length=200, unique=True)
     listing = models.ForeignKey(SkillListing, on_delete=models.SET_NULL, null=True, blank=True)
+    transaction = models.ForeignKey('Transaction', on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
         return self.room_name

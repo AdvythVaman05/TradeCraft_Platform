@@ -81,14 +81,24 @@ ASGI_APPLICATION = 'project.asgi.application'
 
 
 # ---------------------------------------------------------
-# DATABASE — NEON POSTGRES
+# DATABASE — NEON POSTGRES (with local fallback)
 # ---------------------------------------------------------
 
-DATABASES = {
-    'default': dj_database_url.parse(
-        os.environ.get("NEON_URL","")
-    )
-}
+NEON_URL = os.environ.get("NEON_URL")
+USE_SQLITE = os.environ.get("USE_SQLITE", "false").lower() in {"1", "true", "yes"}
+
+if USE_SQLITE or not NEON_URL:
+    # Local development database
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+else:
+    DATABASES = {
+        'default': dj_database_url.parse(NEON_URL)
+    }
 
 # Channels settings (local demo)
 ASGI_APPLICATION = "project.asgi.application"
