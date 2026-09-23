@@ -125,6 +125,12 @@ SECURE_SSL_REDIRECT = os.environ.get(
     "False" if DEBUG else "True"
 ).lower() in ("true", "1", "yes")
 
+# Health check endpoints exempt from SSL redirect (for internal load balancers)
+SECURE_REDIRECT_EXEMPT = [
+    r'^health/?$',
+    r'^api/health/?$',
+]
+
 # Reverse proxy SSL header (e.g. for Nginx / Render / Heroku / AWS ALB)
 if not DEBUG and os.environ.get("SECURE_PROXY_SSL_HEADER", "True").lower() in ("true", "1", "yes"):
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
