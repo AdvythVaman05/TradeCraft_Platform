@@ -113,3 +113,41 @@ Or create a root `package.json` with scripts (see below).
 - Preview production build: `npm run preview`
 - Lint code: `npm run lint`
 
+## Security Architecture & Hardening
+
+TradeCraft Platform incorporates defense-in-depth security hardening across the full stack:
+
+### 1. Authentication & Token Management
+- **Stateless JWT with State-Backed Revocation**: Short-lived access tokens (15 minutes by default) paired with refresh tokens (7 days).
+- **Refresh Token Rotation & Blacklisting**: Every call to `/api/auth/refresh/` invalidates the submitted refresh token and issues a new pair via `rest_framework_simplejwt.token_blacklist`.
+- **Explicit Logout**: `/api/auth/logout/` invalidates the active refresh token in the database blacklist.
+- **Frontend Token Refresh**: React application seamlessly intercepts 401 Unauthorized responses, refreshes credentials transparently, and retries queued API calls without interrupting the user experience.
+
+### 2. Password Policies & Hashing
+- **Django Password Validators**: Enabled in `AUTH_PASSWORD_VALIDATORS` (UserAttributeSimilarityValidator, MinimumLengthValidator, CommonPasswordValidator, NumericPasswordValidator) and enforced on user registration.
+- **Cryptographic Hashing**: Passwords are saved exclusively via Django's cryptographic hashing framework (`PBKDF2` with SHA-256 / Argon2) and never stored in plaintext or fast unsalted digests.
+
+### 3. Rate Limiting & Denial of Service Protection
+- **Scoped Rate Throttling**: Authentication endpoints (`/api/auth/login/`, `/api/auth/refresh/`, `/api/auth/logout/`, `/api/users/register/`) are protected by DRF `ScopedRateThrottle` (`10/minute` default).
+- **Global Throttles**: Configurable anonymous (`100/minute`) and authenticated (`1000/minute`) throttles protect public and user endpoints against brute-force and scraping.
+
+### 4. Data Privacy & Object-Level Authorization
+- **Strict Serializer Isolation**: `PublicUserSerializer` exposes only non-sensitive attributes (`id`, `username`, `bio`), preventing leakage of email, phone, UPI IDs, QR codes, or financial balances.
+- **Transaction & Listing Ownership**: Custom permission classes and queryset filtering ensure only authorized transaction participants (buyer/seller) or listing providers can view or modify records.
+- **Atomic Financial Transactions**: Time Credit transfers are performed inside database transactions (`select_for_update`) with atomic `F()` expressions to prevent race conditions.
+
+### 5. Real-Time Communication & WebSockets
+- **WebSocket Authentication Middleware**: Channels ASGI stack validates JWT access tokens supplied in connection handshake parameters and associates authenticated users with WebSocket connections.
+- **Strict Room Authorization**: `verify_user_room_access` validates room name formats via regular expressions and verifies database participation before joining socket channels.
+
+### 6. Production Security & Verification
+- **Environment & Secrets Configuration**: `SECRET_KEY` and database credentials are required and fail-fast at startup if missing.
+- **Security Headers & Cookies**: Full suite of security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `SameSite=Lax`, and HTTPS secure cookies).
+- **File Upload Protection**: Uploaded UPI QR codes are validated with Pillow for genuine image signatures and stored using sanitized UUID filenames.
+- **Automated Verification**: Run tests with:
+  ```bash
+  python manage.py test core
+  python manage.py check --deploy
+  ```
+
+

@@ -4,10 +4,13 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q
-from rest_framework.exceptions import ValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
 
 from .models import User, SkillListing, Transaction, ChatRoom, ChatMessage
 from .serializers import (
+    PublicUserSerializer,
+    PrivateUserSerializer,
     UserSerializer,
     SkillListingSerializer,
     TransactionSerializer,
@@ -15,8 +18,30 @@ from .serializers import (
 )
 
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly, BasePermission, SAFE_METHODS
+from django.http import JsonResponse
 import re
+
+
+def health_check(request):
+    """
+    Minimal, unauthenticated health check endpoint for production/Railway deployment.
+    Returns HTTP 200 without exposing secrets, system topology, or internal database metadata.
+    """
+    return JsonResponse({"status": "ok"})
+
+
+# -----------------------------------------------------
+# CUSTOM PERMISSIONS
+# -----------------------------------------------------
+class IsProviderOrReadOnly(BasePermission):
+    """
+    Custom permission to ensure only the provider/owner of a listing can edit or delete it.
+    """
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+        return obj.provider == request.user
 
 
 # -----------------------------------------------------
@@ -25,7 +50,7 @@ import re
 class ListingViewSet(viewsets.ModelViewSet):
     queryset = SkillListing.objects.all().order_by("-created_at")
     serializer_class = SkillListingSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly, IsProviderOrReadOnly]
 
     def perform_create(self, serializer):
         serializer.save(provider=self.request.user)
@@ -33,12 +58,12 @@ class ListingViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         listing = self.get_object()
         if listing.provider != self.request.user:
-            raise ValidationError("You can only update your own listings.")
+            raise PermissionDenied("You can only update your own listings.")
         serializer.save()
 
     def perform_destroy(self, instance):
         if instance.provider != self.request.user:
-            raise ValidationError("You can only delete your own listings.")
+            raise PermissionDenied("You can only delete your own listings.")
         instance.delete()
 
 
@@ -48,10 +73,13 @@ class ListingViewSet(viewsets.ModelViewSet):
 class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transaction.objects.all().order_by("-created_at")
     serializer_class = TransactionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "post", "head", "options"]
 
     def get_queryset(self):
         user = self.request.user
+        if not user.is_authenticated:
+            return Transaction.objects.none()
         return Transaction.objects.filter(
             Q(buyer=user) | Q(seller=user)
         ).order_by("-created_at")
@@ -84,8 +112,10 @@ class TransactionViewSet(viewsets.ModelViewSet):
         # If payment_method is TC, record tc_amount but do NOT deduct now.
         if payment_method == "TC":
             tc_amount = listing.price_timecredits
-            if tc_amount is None:
+            if tc_amount is None or tc_amount <= 0:
                 raise ValidationError("Listing does not support Time Credit payment.")
+            if buyer.time_credits < tc_amount:
+                raise ValidationError("Insufficient Time Credits to initiate this transaction.")
             txn = serializer.save(
                 buyer=buyer,
                 seller=seller,
@@ -161,11 +191,55 @@ class TransactionViewSet(viewsets.ModelViewSet):
         if txn.seller_rejected:
             return Response({"error": "Transaction already rejected."}, status=400)
 
-        txn.reject()
+        try:
+            txn.reject()
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=400)
         return Response({"status": "Transaction rejected"})
+
+from django.contrib.auth.password_validation import validate_password
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+
+
+class ThrottledTokenObtainPairView(TokenObtainPairView):
+    """
+    Login endpoint with rate limiting to mitigate brute-force authentication attacks.
+    """
+    throttle_scope = 'auth'
+
+
+class ThrottledTokenRefreshView(TokenRefreshView):
+    """
+    Refresh token endpoint with rate limiting and refresh token rotation.
+    """
+    throttle_scope = 'auth'
+
+
+class LogoutView(APIView):
+    """
+    Logout endpoint that blacklists the active refresh token.
+    """
+    permission_classes = [IsAuthenticated]
+    throttle_scope = 'auth'
+
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response({"error": "Refresh token is required for logout."}, status=400)
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except (TokenError, Exception):
+            return Response({"error": "Invalid or expired refresh token."}, status=400)
+
+        return Response({"message": "Successfully logged out."})
+
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_scope = 'auth'
 
     def post(self, request):
         username = request.data.get("username")
@@ -173,24 +247,33 @@ class RegisterView(APIView):
         password = request.data.get("password")
 
         if not username or not password:
-            return Response({"error": "username and password required"}, status=400)
+            return Response({"error": "Username and password are required."}, status=400)
 
         if User.objects.filter(username=username).exists():
-            return Response({"error": "username already exists"}, status=400)
+            return Response({"error": "Username already exists."}, status=400)
 
+        # Enforce Django password validators
+        temp_user = User(username=username, email=email or "")
+        try:
+            validate_password(password, user=temp_user)
+        except DjangoValidationError as err:
+            msg = err.messages[0] if hasattr(err, "messages") and err.messages else str(err)
+            return Response({"error": msg}, status=400)
+
+        # Explicitly assign only allowable fields, preventing mass assignment of privileged attributes
         user = User.objects.create_user(
             username=username,
             email=email,
             password=password,
         )
 
-        return Response({"message": "User registered successfully"})
+        return Response({"message": "User registered successfully."})
 
 class UserMeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        return Response(PrivateUserSerializer(request.user).data)
 
     def put(self, request):
         user = request.user
@@ -227,7 +310,14 @@ class UserMeView(APIView):
             user.upi_id = request.data.get("upi_id")
         
         if "upi_qr" in request.FILES:
-            user.upi_qr = request.FILES["upi_qr"]
+            from .validators import validate_image_file
+            qr_file = request.FILES["upi_qr"]
+            try:
+                validate_image_file(qr_file)
+            except (DjangoValidationError, ValidationError) as err:
+                msg = err.messages[0] if hasattr(err, "messages") and err.messages else (err.message if hasattr(err, "message") else str(err))
+                return Response({"error": msg}, status=400)
+            user.upi_qr = qr_file
 
         user.save()
         return Response(UserSerializer(user).data)
@@ -358,7 +448,7 @@ class SellerBuyersView(APIView):
             key = f"{buyer_id}_{listing_id}"
             if key not in buyer_listing_map:
                 buyer_listing_map[key] = {
-                    "buyer": UserSerializer(txn.buyer).data,
+                    "buyer": PublicUserSerializer(txn.buyer).data,
                     "listing": SkillListingSerializer(txn.listing).data,
                     "transaction": TransactionSerializer(txn).data,
                     "transactions": []
@@ -401,7 +491,7 @@ class SellerBuyersView(APIView):
                     "seller_verified_at": None,
                 }
                 buyer_listing_map[key] = {
-                    "buyer": UserSerializer(buyer_obj).data,
+                    "buyer": PublicUserSerializer(buyer_obj).data,
                     "listing": SkillListingSerializer(room.listing).data,
                     "transaction": default_txn,
                     "chat_room": room.room_name,

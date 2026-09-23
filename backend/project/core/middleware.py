@@ -36,8 +36,9 @@ class JwtAuthMiddlewareInstance:
             try:
                 # Validate token (raises if invalid)
                 UntypedToken(token)
-                # Decode token to get user id
-                decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+                # Decode token to get user id using configured JWT signing key
+                jwt_key = getattr(settings, "JWT_SECRET_KEY", None) or getattr(settings, "SIMPLE_JWT", {}).get("SIGNING_KEY", settings.SECRET_KEY)
+                decoded = jwt.decode(token, jwt_key, algorithms=["HS256"])
                 user_id = decoded.get("user_id") or decoded.get("user")
                 if user_id:
                     try:
@@ -53,7 +54,13 @@ class JwtAuthMiddlewareInstance:
         return await inner(receive, send)
 
 # helper to fetch user in async
-from asgiref.sync import sync_to_async
-@sync_to_async
+from channels.db import database_sync_to_async
+
+@database_sync_to_async
 def get_user_async(uid):
-    return User.objects.get(pk=uid)
+    try:
+        return User.objects.get(pk=uid)
+    except (User.DoesNotExist, Exception):
+        return AnonymousUser()
+
+

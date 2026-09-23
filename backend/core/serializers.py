@@ -3,9 +3,29 @@ from .models import User, SkillListing, Transaction, ChatMessage
 
 
 # -----------------------------
-# USER SERIALIZER
+# 1. PUBLIC USER SERIALIZER
 # -----------------------------
-class UserSerializer(serializers.ModelSerializer):
+class PublicUserSerializer(serializers.ModelSerializer):
+    """
+    Public profile data safe for unauthenticated and public viewing.
+    Excludes email, phone, upi_id, upi_qr, time_credits, and bought_listings.
+    """
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "bio",
+        ]
+
+
+# -----------------------------
+# 2. PRIVATE USER SERIALIZER
+# -----------------------------
+class PrivateUserSerializer(serializers.ModelSerializer):
+    """
+    Private user profile data accessible only to the authenticated user on /api/user/me/.
+    """
     bought_listings = serializers.SerializerMethodField()
 
     class Meta:
@@ -21,6 +41,11 @@ class UserSerializer(serializers.ModelSerializer):
             "time_credits",
             "bought_listings",
         ]
+        read_only_fields = [
+            "id",
+            "time_credits",
+            "bought_listings",
+        ]
 
     def get_bought_listings(self, obj):
         # Return a list of listing IDs where the user is the buyer and transaction is completed
@@ -29,12 +54,34 @@ class UserSerializer(serializers.ModelSerializer):
         )
 
 
+# Backward compatibility alias
+UserSerializer = PrivateUserSerializer
+
 
 # -----------------------------
-# LISTING SERIALIZER
+# 3. TRANSACTION PARTICIPANT SERIALIZER
+# -----------------------------
+class TransactionSellerSerializer(serializers.ModelSerializer):
+    """
+    Seller profile information shared with the buyer during transaction payment fulfillment.
+    Includes UPI payment details when necessary, but excludes email, phone, time_credits, and bought_listings.
+    """
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "bio",
+            "upi_id",
+            "upi_qr",
+        ]
+
+
+# -----------------------------
+# 4. SKILL LISTING SERIALIZER
 # -----------------------------
 class SkillListingSerializer(serializers.ModelSerializer):
-    provider = UserSerializer(read_only=True)
+    provider = PublicUserSerializer(read_only=True)
 
     def validate_price_rupees(self, value):
         if value is None:
@@ -64,11 +111,12 @@ class SkillListingSerializer(serializers.ModelSerializer):
 
 
 # -----------------------------
-# TRANSACTION SERIALIZER
+# 5. TRANSACTION SERIALIZER
 # -----------------------------
 class TransactionSerializer(serializers.ModelSerializer):
-    buyer = UserSerializer(read_only=True)
-    seller = UserSerializer(read_only=True)
+    buyer = PublicUserSerializer(read_only=True)
+    seller = TransactionSellerSerializer(read_only=True)
+    listing = SkillListingSerializer(read_only=True)
 
     class Meta:
         model = Transaction
@@ -84,8 +132,11 @@ class TransactionSerializer(serializers.ModelSerializer):
         ]
 
 
+# -----------------------------
+# 6. CHAT MESSAGE SERIALIZER
+# -----------------------------
 class ChatMessageSerializer(serializers.ModelSerializer):
-    sender = UserSerializer(read_only=True)
+    sender = PublicUserSerializer(read_only=True)
 
     class Meta:
         model = ChatMessage

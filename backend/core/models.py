@@ -1,7 +1,27 @@
+import os
+import uuid
 from django.db import models, transaction
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from django.db.models import F
+from .validators import validate_image_file
+
+
+def upi_qr_upload_path(instance, filename):
+    """
+    Generate a safe, random UUID filename with a normalized extension.
+    Prevents path traversal attacks and executable file uploads.
+    """
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in ('.jpg', '.jpeg'):
+        clean_ext = '.jpg'
+    elif ext == '.webp':
+        clean_ext = '.webp'
+    else:
+        clean_ext = '.png'
+
+    unique_name = f"{uuid.uuid4().hex}{clean_ext}"
+    return f"upi_qr/{unique_name}"
 
 
 # ----------------------------------------------------------
@@ -11,7 +31,12 @@ class User(AbstractUser):
     phone = models.CharField(max_length=20, blank=True, null=True)
     bio = models.TextField(blank=True)
     upi_id = models.CharField(max_length=200, blank=True, null=True)
-    upi_qr = models.ImageField(upload_to="upi_qr/", blank=True, null=True)
+    upi_qr = models.ImageField(
+        upload_to=upi_qr_upload_path,
+        validators=[validate_image_file],
+        blank=True,
+        null=True
+    )
     time_credits = models.DecimalField(max_digits=10, decimal_places=2, default=100)
 
 

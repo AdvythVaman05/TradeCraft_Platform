@@ -1,1 +1,40 @@
+# Virtual Environments
 .venv/
+backend/venv/
+venv/
+env/
+ENV/
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.env
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Databases
+*.sqlite3
+db.sqlite3
+
+# Media uploads & static collection
+media/
+backend/media/
+staticfiles/
+backend/staticfiles/
+
+# Node & Frontend builds
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
