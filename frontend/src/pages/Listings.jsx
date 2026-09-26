@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAppContext } from '../context/AppContext.jsx'
 
 function Listings() {
@@ -25,115 +26,112 @@ function Listings() {
   return (
     <section className="section">
       <div className="container">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Marketplace</p>
-            <h2>Live listings</h2>
+        <div className="editorial-grid">
+          <div className="editorial-main">
+            <h1 className="display-text mb-4">Find a skill</h1>
+            <p className="lede mb-8">
+              Browse community offerings, request exchanges, and use your Time Credits.
+            </p>
           </div>
-          <input
-            className="search"
-            placeholder="Search by title or location…"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
         </div>
-        {isAuthenticated && myListings.length > 0 && (
-          <div className="section" style={{ paddingTop: 0 }}>
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Your listings</p>
-                <h3>Shown to everyone</h3>
-              </div>
-            </div>
-            <div className="listing-grid">
+
+        <div className="section-header flex-between mb-8" style={{ alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
+          <div className="input-group" style={{ marginBottom: 0, minWidth: '300px', flex: 1 }}>
+            <label>Search listings</label>
+            <input
+              placeholder="e.g., Python, design, Mumbai..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+        </div>
+
+        {isAuthenticated && myListings.length > 0 && !query && (
+          <div className="mb-8 object-panel" style={{ background: 'transparent' }}>
+            <h3 className="mb-4">Your Active Listings</h3>
+            <div className="listings-feed">
               {myListings.map((listing) => (
-                <article className="listing-card" key={`mine-${listing.id}`}>
-                  <p className="eyebrow">Your listing</p>
-                  <h3>{listing.title}</h3>
-                  <p>{listing.description}</p>
-                  <div className="listing-meta">
-                    <span>{listing.location || 'Remote / Online'}</span>
-                    <span>{new Date(listing.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                <article className="listing-item" key={`mine-${listing.id}`}>
+                  <div className="listing-content">
+                    <h3 className="listing-title">{listing.title}</h3>
+                    <p className="listing-desc">{listing.description}</p>
+                    <div className="listing-provider">
+                      Offered by you &middot; {listing.location || 'Remote / Online'}
+                    </div>
                   </div>
-                  <div className="action-row">
-                    {listing.price_rupees && (
-                      <span className="price-chip">₹{Number(listing.price_rupees).toLocaleString('en-IN')}</span>
-                    )}
-                    {listing.price_timecredits && <span className="price-chip">{listing.price_timecredits} TC</span>}
+                  <div className="listing-aside">
+                    {listing.price_timecredits && <div className="credit-cost">{listing.price_timecredits} TC</div>}
+                    {listing.price_rupees && <div className="credit-cost" style={{background: 'var(--surface-alt)', color: 'var(--text-primary)'}}>₹{Number(listing.price_rupees).toLocaleString('en-IN')}</div>}
+                    <Link to="/seller" className="secondary-btn">Manage in Dashboard</Link>
                   </div>
-                  <p className="hint">Use the Seller Dashboard to edit or chat with buyers.</p>
                 </article>
               ))}
             </div>
           </div>
         )}
 
+        <h3 className="mb-4">Community Offerings</h3>
         {filtered.length === 0 ? (
-          <p className="hint">No listings match your search yet.</p>
+          <div className="empty-state">
+            <p>No listings match your search.</p>
+          </div>
         ) : (
-          <div className="listing-grid">
+          <div className="listings-feed" style={{ borderTop: '1px solid var(--border)' }}>
             {filtered.map((listing) => {
-              const rupee = listing.price_rupees ? `₹${Number(listing.price_rupees).toLocaleString('en-IN')}` : null
-              const tc = listing.price_timecredits ? `${listing.price_timecredits} TC` : null
               const isSeller = isAuthenticated && profile && listing.provider?.id === profile.id
               const hasBought =
                 isAuthenticated &&
                 profile &&
                 Array.isArray(profile.bought_listings) &&
                 profile.bought_listings.includes(listing.id)
+              
               return (
-                <article className="listing-card" key={listing.id}>
-                  <p className="eyebrow">{listing.provider?.username || 'Anonymous provider'}</p>
-                  <h3>{listing.title}</h3>
-                  <p>{listing.description}</p>
-                  <div className="listing-meta">
-                    <span>{listing.location || 'Remote / Online'}</span>
-                    <span>{new Date(listing.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
-                  </div>
-                  {!isSeller && listing.provider?.upi_id && (
-                    <p className="hint">Seller UPI ID: <strong>{listing.provider.upi_id}</strong></p>
-                  )}
-                  <div className="action-row">
-                    {rupee && <span className="price-chip">{rupee}</span>}
-                    {tc && <span className="price-chip">{tc}</span>}
-                    {isSeller && <span className="badge soft">Your listing</span>}
-                    {!isSeller && hasBought && (
-                      <span className="badge soft" style={{ background: '#6b7280', color: '#fff' }}>
-                        Already bought
-                      </span>
+                <article className="listing-item" key={listing.id}>
+                  <div className="listing-content">
+                    <h3 className="listing-title">{listing.title}</h3>
+                    <p className="listing-desc">{listing.description}</p>
+                    <div className="listing-provider">
+                      Offered by {listing.provider?.username || 'Anonymous'} &middot; {listing.location || 'Remote / Online'}
+                    </div>
+                    {!isSeller && listing.provider?.upi_id && (
+                      <div className="metadata mt-4">
+                        Seller UPI: {listing.provider.upi_id}
+                      </div>
                     )}
                   </div>
-                  {isAuthenticated ? (
-                    isSeller ? (
-                      <div className="action-row">
-                        <p className="hint">This is your listing. Manage it from the Seller Dashboard.</p>
-                      </div>
-                    ) : (
-                      <div className="action-row">
-                        <button
-                          className="ghost-btn"
-                          onClick={() => startTransaction(listing.id, 'UPI')}
-                          disabled={hasBought}
-                        >
-                          Start UPI trade
-                        </button>
-                        {tc && (
-                          <button
-                            className="ghost-btn"
-                            onClick={() => startTransaction(listing.id, 'TC')}
-                            disabled={hasBought}
-                          >
-                            Use time credits
-                          </button>
-                        )}
-                        <button className="primary-btn" onClick={() => openChatForListing(listing)}>
-                          Chat with seller
-                        </button>
-                      </div>
-                    )
-                  ) : (
-                    <p className="hint">Sign in to start a transaction.</p>
-                  )}
+                  
+                  <div className="listing-aside">
+                    {listing.price_timecredits && <div className="credit-cost">{listing.price_timecredits} TC</div>}
+                    {listing.price_rupees && <div className="credit-cost" style={{background: 'var(--surface-alt)', color: 'var(--text-primary)'}}>₹{Number(listing.price_rupees).toLocaleString('en-IN')}</div>}
+                    
+                    <div className="flex-row">
+                      {isAuthenticated ? (
+                        isSeller ? (
+                          <span className="badge">Your listing</span>
+                        ) : hasBought ? (
+                          <span className="badge">Already requested</span>
+                        ) : (
+                          <>
+                            {listing.price_rupees && (
+                              <button className="secondary-btn" onClick={() => startTransaction(listing.id, 'UPI')}>
+                                Request (UPI)
+                              </button>
+                            )}
+                            {listing.price_timecredits && (
+                              <button className="secondary-btn" onClick={() => startTransaction(listing.id, 'TC')}>
+                                Request (TC)
+                              </button>
+                            )}
+                            <button className="primary-btn accent" onClick={() => openChatForListing(listing)}>
+                              Message
+                            </button>
+                          </>
+                        )
+                      ) : (
+                        <p className="form-hint" style={{margin: 0}}>Sign in to request</p>
+                      )}
+                    </div>
+                  </div>
                 </article>
               )
             })}
@@ -145,4 +143,3 @@ function Listings() {
 }
 
 export default Listings
-

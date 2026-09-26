@@ -10,9 +10,9 @@ function SellerDashboard() {
 
   const [buyerListings, setBuyerListings] = useState([])
   const [loading, setLoading] = useState(true)
-  const [openChats, setOpenChats] = useState({}) // { "buyerId_listingId": true }
-  const [chatMessages, setChatMessages] = useState({}) // { "buyerId_listingId": [messages] }
-  const [chatInputs, setChatInputs] = useState({}) // { "buyerId_listingId": "text" }
+  const [openChats, setOpenChats] = useState({}) 
+  const [chatMessages, setChatMessages] = useState({})
+  const [chatInputs, setChatInputs] = useState({})
   const chatPollRefs = useRef({})
   const messageRefs = useRef({})
 
@@ -22,7 +22,6 @@ function SellerDashboard() {
     }
   }, [isAuthenticated, profile])
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     Object.keys(chatMessages).forEach((key) => {
       const ref = messageRefs.current[key]
@@ -50,13 +49,11 @@ function SellerDashboard() {
     const key = `${buyerId}_${listingId}`
     setOpenChats((prev) => ({ ...prev, [key]: true }))
     
-    // Load chat messages with buyer_id parameter for seller-specific chat
     try {
       const data = await apiRequest(`/chat/listing/${listingId}/thread/?buyer_id=${buyerId}`)
       const messages = Array.isArray(data.messages) ? data.messages : []
       setChatMessages((prev) => ({ ...prev, [key]: messages }))
       
-      // Start polling for new messages
       if (chatPollRefs.current[key]) {
         clearInterval(chatPollRefs.current[key])
       }
@@ -83,7 +80,6 @@ function SellerDashboard() {
       return newState
     })
     
-    // Stop polling
     if (chatPollRefs.current[key]) {
       clearInterval(chatPollRefs.current[key])
       delete chatPollRefs.current[key]
@@ -114,7 +110,6 @@ function SellerDashboard() {
     }
   }
 
-  // Cleanup polling on unmount
   useEffect(() => {
     return () => {
       Object.values(chatPollRefs.current).forEach((interval) => clearInterval(interval))
@@ -123,20 +118,18 @@ function SellerDashboard() {
 
   if (!isAuthenticated) {
     return (
-      <section className="section">
+      <section className="section" style={{ paddingTop: '4rem' }}>
         <div className="container">
-          <article className="card">
-            <h2>Sign in to access Seller Dashboard</h2>
-            <p className="hint">
-              <Link to="/">Sign in</Link> to view and manage your listings and buyer communications.
-            </p>
-          </article>
+          <div className="empty-state">
+            <h2 className="mb-2">Sign in to manage your offerings</h2>
+            <p className="mb-6">You must be logged in to view your seller dashboard.</p>
+            <Link to="/" className="primary-btn accent">Go to Home</Link>
+          </div>
         </div>
       </section>
     )
   }
 
-  // Get seller's own listings
   const sellerListings = listings.filter((listing) => listing.provider?.id === profile?.id)
   const listingsWithBuyers = buyerListings.map((item) => item.listing.id)
   const listingsWithoutBuyers = sellerListings.filter((listing) => !listingsWithBuyers.includes(listing.id))
@@ -144,146 +137,97 @@ function SellerDashboard() {
   return (
     <section className="section">
       <div className="container">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Seller Dashboard</p>
-            <h2>Manage your listings and buyers</h2>
+        <div className="editorial-grid mb-8">
+          <div className="editorial-main">
+            <h1 className="display-text mb-4">Workspace</h1>
+            <p className="lede">
+              Manage your community offerings, active exchanges, and incoming requests.
+            </p>
           </div>
         </div>
 
         {loading ? (
-          <p className="hint">Loading...</p>
+          <div className="skeleton" style={{ height: '200px', width: '100%' }}></div>
         ) : buyerListings.length === 0 && sellerListings.length === 0 ? (
-          <article className="card">
-            <p className="hint">
-              You don't have any listings yet. <Link to="/account">Create a listing</Link> to get started.
-            </p>
-          </article>
+          <div className="empty-state">
+            <p>You haven't offered any skills yet.</p>
+            <Link to="/account" className="primary-btn accent mt-4">Create a Listing</Link>
+          </div>
         ) : (
           <>
-            {/* Show listings with buyers */}
             {buyerListings.length > 0 && (
-              <div style={{ marginBottom: '3rem' }}>
-                <div className="section-heading" style={{ marginBottom: '1.5rem' }}>
-                  <div>
-                    <p className="eyebrow">Active Conversations</p>
-                    <h3>Listings with buyers ({buyerListings.length})</h3>
-                  </div>
+              <div className="mb-8">
+                <div className="section-header">
+                  <h2>Active Exchanges</h2>
                 </div>
-                <div className="listing-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '1.5rem' }}>
+                <div className="listings-feed" style={{ borderTop: '1px solid var(--border)' }}>
                   {buyerListings.map((item) => {
                     const key = `${item.buyer.id}_${item.listing.id}`
                     const isOpen = openChats[key]
                     const messages = chatMessages[key] || []
                     const inputValue = chatInputs[key] || ''
                     const txnStatus = item.transaction.seller_rejected
-                      ? { label: 'Rejected', color: '#ef4444' }
+                      ? { label: 'Rejected', className: 'error' }
                       : item.transaction.seller_verified
-                      ? { label: 'Completed', color: '#22c55e' }
-                      : { label: 'Pending', color: '#f59e0b' }
+                      ? { label: 'Completed', className: 'success' }
+                      : { label: 'Pending', className: 'pending' }
 
                     return (
-                      <article className="card" key={key} style={{ display: 'flex', flexDirection: 'column', minHeight: '400px' }}>
-                        <div className="card-header" style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid #e0e0e0' }}>
-                          <div style={{ flex: 1 }}>
-                            <p className="eyebrow" style={{ marginBottom: '0.25rem' }}>Listing</p>
-                            <h3 style={{ marginBottom: '0.5rem', fontSize: '1.25rem' }}>{item.listing.title}</h3>
-                            <p className="hint" style={{ marginBottom: '0.25rem' }}>
-                              <strong>Buyer:</strong> {item.buyer.username}
-                            </p>
-                            <p className="hint" style={{ fontSize: '0.875rem', color: '#666' }}>
-                              Transaction #{item.transaction.id}
-                            </p>
+                      <article className="listing-item" key={key} style={{ flexWrap: 'wrap' }}>
+                        <div className="listing-content" style={{ minWidth: '300px' }}>
+                          <h3 className="listing-title mb-2">{item.listing.title}</h3>
+                          <div className="record-meta mb-2">
+                            <span>Buyer: {item.buyer.username}</span>
+                            <span>&middot;</span>
+                            <span>Exchange #{item.transaction.id}</span>
+                          </div>
+                          
+                          <div className="flex-row">
+                            <span className={`status-pill ${txnStatus.className}`}>{txnStatus.label}</span>
                             {item.transaction.payment_method === 'UPI' && item.transaction.buyer_txn_id && (
-                              <p className="hint" style={{ marginTop: '0.25rem' }}>
-                                Buyer UPI reference:{' '}
-                                <code style={{ fontSize: '0.95rem' }}>{item.transaction.buyer_txn_id}</code>
-                              </p>
+                              <span className="metadata">UTR: {item.transaction.buyer_txn_id}</span>
                             )}
                           </div>
-                          <span
-                            className="badge"
-                            style={{
-                              background: txnStatus.color,
-                              color: '#fff',
-                              alignSelf: 'flex-start',
-                            }}
-                          >
-                            {txnStatus.label}
-                          </span>
                         </div>
 
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                          <button
-                            className={isOpen ? 'primary-btn' : 'ghost-btn'}
-                            onClick={() => (isOpen ? closeChat(item.buyer.id, item.listing.id) : openChat(item.buyer.id, item.listing.id))}
-                            style={{ marginBottom: '1rem', width: '100%' }}
-                          >
-                            {isOpen ? '▼ Close Chat' : '▶ Open Chat'}
-                          </button>
+                        <div className="listing-aside" style={{ flex: '1 1 auto', minWidth: '300px', maxWidth: isOpen ? '100%' : '200px' }}>
+                          {!isOpen ? (
+                            <button className="secondary-btn" onClick={() => openChat(item.buyer.id, item.listing.id)}>
+                              Open Request
+                            </button>
+                          ) : (
+                            <div className="object-panel" style={{ width: '100%', padding: '1.5rem' }}>
+                              <div className="flex-between mb-4">
+                                <h3 style={{ fontSize: '1.1rem' }}>Conversation with {item.buyer.username}</h3>
+                                <button className="ghost-btn" style={{ padding: '0.25rem 0.5rem' }} onClick={() => closeChat(item.buyer.id, item.listing.id)}>
+                                  Close
+                                </button>
+                              </div>
 
-                          {isOpen && (
-                            <div className="chat-section" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
-                              {item.transaction.seller_rejected && (
-                                <p className="hint error" style={{ marginBottom: '0.5rem' }}>
-                                  You rejected this payment on{' '}
-                                  {item.transaction.seller_rejected_at
-                                    ? new Date(item.transaction.seller_rejected_at).toLocaleString()
-                                    : '—'}
-                                </p>
-                              )}
                               <div
                                 ref={(el) => (messageRefs.current[key] = el)}
-                                className="chat-messages"
+                                className="chat-messages mb-4"
                                 style={{
-                                  flex: 1,
-                                  maxHeight: '400px',
-                                  minHeight: '250px',
-                                  overflowY: 'auto',
-                                  marginBottom: '1rem',
+                                  height: '250px',
                                   padding: '1rem',
-                                  background: '#f8f9fa',
-                                  borderRadius: '8px',
-                                  border: '1px solid #e0e0e0',
+                                  background: 'var(--bg-primary)',
+                                  borderRadius: 'var(--radius-md)',
+                                  border: '1px solid var(--border)'
                                 }}
                               >
                                 {messages.length === 0 ? (
-                                  <p className="hint" style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
-                                    No messages yet. Start the conversation.
-                                  </p>
+                                  <p className="metadata" style={{ textAlign: 'center', marginTop: '2rem' }}>No messages yet.</p>
                                 ) : (
                                   messages.map((message) => {
                                     const isSeller = message.sender?.id === profile?.id
                                     return (
-                                      <div
-                                        key={message.id}
-                                        className="chat-bubble"
-                                        style={{
-                                          marginBottom: '1rem',
-                                          padding: '0.75rem',
-                                          background: isSeller ? '#e3f2fd' : '#ffffff',
-                                          borderRadius: '8px',
-                                          border: '1px solid #e0e0e0',
-                                          marginLeft: isSeller ? 'auto' : '0',
-                                          marginRight: isSeller ? '0' : 'auto',
-                                          maxWidth: '85%',
-                                        }}
-                                      >
-                                        <div className="bubble-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                          <strong style={{ fontSize: '0.875rem', color: isSeller ? '#1976d2' : '#333' }}>
-                                            {message.sender?.username || 'User'}
-                                            {isSeller && ' (You)'}
-                                          </strong>
-                                          <span style={{ fontSize: '0.75rem', color: '#666' }}>
-                                            {new Date(message.created_at).toLocaleTimeString('en-IN', {
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                            })}
-                                          </span>
+                                      <div key={message.id} className={`chat-message-row ${isSeller ? 'sent' : 'received'}`} style={{ marginBottom: '1rem' }}>
+                                        <div className="chat-meta">
+                                          {new Date(message.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                                         </div>
-                                        <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: '1.5', color: '#333' }}>
+                                        <div className="chat-bubble">
                                           {message.content}
-                                        </p>
+                                        </div>
                                       </div>
                                     )
                                   })
@@ -291,48 +235,32 @@ function SellerDashboard() {
                               </div>
                               <form
                                 className="chat-input"
+                                style={{ padding: 0, border: 'none', borderRadius: 0, marginBottom: '1.5rem' }}
                                 onSubmit={(e) => {
                                   e.preventDefault()
                                   sendMessage(item.buyer.id, item.listing.id)
                                 }}
-                                style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}
                               >
                                 <input
                                   type="text"
                                   value={inputValue}
                                   onChange={(e) =>
-                                    setChatInputs((prev) => ({
-                                      ...prev,
-                                      [key]: e.target.value,
-                                    }))
+                                    setChatInputs((prev) => ({ ...prev, [key]: e.target.value }))
                                   }
-                                  placeholder="Type your message..."
-                                  style={{
-                                    flex: 1,
-                                    padding: '0.75rem',
-                                    border: '1px solid #e0e0e0',
-                                    borderRadius: '6px',
-                                    fontSize: '0.9375rem',
-                                  }}
+                                  placeholder="Type a message..."
                                 />
-                                <button type="submit" className="primary-btn" style={{ padding: '0.75rem 1.5rem' }}>
-                                  Send
-                                </button>
+                                <button type="submit" className="primary-btn">Send</button>
                               </form>
-                              {/* Show verify/reject for pending transactions (seller only) */}
+
                               {!item.transaction.seller_verified && !item.transaction.seller_rejected && item.transaction.id && (
-                                <div style={{ marginTop: '0.75rem' }} className="action-row">
+                                <div className="flex-row pt-4" style={{ borderTop: '1px solid var(--border)' }}>
                                   {(item.transaction.payment_method === 'TC' || (item.transaction.payment_method === 'UPI' && item.transaction.buyer_txn_id)) && (
                                     <>
-                                      <button
-                                        className="primary-btn"
-                                        onClick={() => verifyTransaction(item.transaction.id)}
-                                        style={{ marginRight: '0.5rem' }}
-                                      >
-                                        Confirm
+                                      <button className="primary-btn accent" onClick={() => verifyTransaction(item.transaction.id)}>
+                                        Confirm Fulfillment
                                       </button>
                                       <button className="ghost-btn" onClick={() => rejectTransaction(item.transaction.id)}>
-                                        Reject
+                                        Reject Request
                                       </button>
                                     </>
                                   )}
@@ -348,44 +276,28 @@ function SellerDashboard() {
               </div>
             )}
 
-            {/* Show listings without buyers yet */}
             {listingsWithoutBuyers.length > 0 && (
               <div>
-                <div className="section-heading" style={{ marginBottom: '1.5rem' }}>
-                  <div>
-                    <p className="eyebrow">Your Listings</p>
-                    <h3>Listings without buyers ({listingsWithoutBuyers.length})</h3>
-                  </div>
+                <div className="section-header">
+                  <h2>Available Offerings</h2>
                 </div>
-                <div className="listing-grid">
-                  {listingsWithoutBuyers.map((listing) => {
-                    const rupee = listing.price_rupees
-                      ? `₹${Number(listing.price_rupees).toLocaleString('en-IN')}`
-                      : null
-                    const tc = listing.price_timecredits ? `${listing.price_timecredits} TC` : null
-
-                    return (
-                      <article className="listing-card" key={listing.id}>
-                        <p className="eyebrow">Your listing</p>
-                        <h3>{listing.title}</h3>
-                        <p>{listing.description}</p>
-                        <div className="listing-meta">
-                          <span>{listing.location || 'Remote / Online'}</span>
-                          <span>
-                            {new Date(listing.created_at).toLocaleDateString('en-IN', {
-                              day: 'numeric',
-                              month: 'short',
-                            })}
-                          </span>
+                <div className="listings-feed" style={{ borderTop: '1px solid var(--border)' }}>
+                  {listingsWithoutBuyers.map((listing) => (
+                    <article className="listing-item" key={listing.id}>
+                      <div className="listing-content">
+                        <h3 className="listing-title">{listing.title}</h3>
+                        <p className="listing-desc">{listing.description}</p>
+                        <div className="listing-provider">
+                          {listing.location || 'Remote / Online'}
                         </div>
-                        <div className="action-row">
-                          {rupee && <span className="price-chip">{rupee}</span>}
-                          {tc && <span className="price-chip">{tc}</span>}
-                        </div>
-                        <p className="hint" style={{ marginTop: '1rem' }}>Waiting for buyers to show interest.</p>
-                      </article>
-                    )
-                  })}
+                      </div>
+                      <div className="listing-aside">
+                        {listing.price_timecredits && <div className="credit-cost">{listing.price_timecredits} TC</div>}
+                        {listing.price_rupees && <div className="credit-cost" style={{background: 'var(--surface-alt)', color: 'var(--text-primary)'}}>₹{Number(listing.price_rupees).toLocaleString('en-IN')}</div>}
+                        <div className="metadata mt-2">Awaiting requests</div>
+                      </div>
+                    </article>
+                  ))}
                 </div>
               </div>
             )}

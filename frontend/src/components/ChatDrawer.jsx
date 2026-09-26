@@ -3,14 +3,13 @@ import { useAppContext } from '../context/AppContext.jsx'
 
 function ChatDrawer() {
   const {
-    state: { chat, isAuthenticated },
+    state: { chat, isAuthenticated, profile },
     api: { closeChat, sendChatMessage },
   } = useAppContext()
   const [input, setInput] = useState('')
   const listRef = useRef(null)
 
   useEffect(() => {
-    // reset draft input whenever the chat target changes
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setInput('')
   }, [chat.listing?.id, chat.isOpen])
@@ -27,6 +26,7 @@ function ChatDrawer() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (!input.trim()) return
     await sendChatMessage(input)
     setInput('')
   }
@@ -36,36 +36,41 @@ function ChatDrawer() {
       <div className="chat-panel">
         <header>
           <div>
-            <p className="eyebrow">Chat</p>
-            <h3>{chat.listing?.title || 'Listing chat'}</h3>
-            {chat.partner && (
-              <p className="hint">With: {chat.partner.username || chat.partner}</p>
-            )}
+            <div className="eyebrow" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Chat with {chat.partner?.username || 'Seller'}</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{chat.listing?.title || 'Listing chat'}</div>
           </div>
-          <button className="ghost-btn" onClick={closeChat}>
+          <button className="ghost-btn" style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }} onClick={closeChat}>
             Close
           </button>
         </header>
+        
         <div className="chat-messages" ref={listRef}>
-          {chat.loading && <p className="hint">Loading conversation…</p>}
-          {!chat.loading && chat.messages.length === 0 && <p className="hint">Start the conversation with the seller.</p>}
-          {chat.messages.map((message) => (
-            <div key={message.id} className="chat-bubble">
-              <div className="bubble-header">
-                <strong>{message.sender?.username || 'User'}</strong>
-                <span>{new Date(message.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+          {chat.loading && <p className="metadata" style={{ textAlign: 'center' }}>Loading conversation…</p>}
+          {!chat.loading && chat.messages.length === 0 && (
+            <p className="metadata" style={{ textAlign: 'center' }}>Start the conversation with {chat.partner?.username || 'the seller'}.</p>
+          )}
+          {chat.messages.map((message) => {
+            const isMe = message.sender?.id === profile?.id
+            return (
+              <div key={message.id} className={`chat-message-row ${isMe ? 'sent' : 'received'}`}>
+                <div className="chat-meta">
+                  {isMe ? 'You' : message.sender?.username || 'User'} &middot; {new Date(message.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <div className="chat-bubble">
+                  {message.content}
+                </div>
               </div>
-              <p>{message.content}</p>
-            </div>
-          ))}
+            )
+          })}
         </div>
+        
         <form className="chat-input" onSubmit={handleSubmit}>
           <input
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Type your offer or question…"
+            placeholder="Type your message…"
           />
-          <button type="submit" className="primary-btn">
+          <button type="submit" className="primary-btn accent" style={{ padding: '0.5rem 1rem' }}>
             Send
           </button>
         </form>
@@ -75,4 +80,3 @@ function ChatDrawer() {
 }
 
 export default ChatDrawer
-

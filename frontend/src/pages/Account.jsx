@@ -28,7 +28,6 @@ function Account() {
   })
   const [submitting, setSubmitting] = useState(false)
 
-  // Initialize profile form when profile loads
   useEffect(() => {
     if (profile) {
       setProfileForm({
@@ -44,7 +43,6 @@ function Account() {
 
   const handleProfileSubmit = async (event) => {
     event.preventDefault()
-    // Phone validation: must be 10 digits, all numbers
     const phone = profileForm.phone.trim()
     if (phone && (!/^\d{10}$/.test(phone))) {
       alert('Phone number must be exactly 10 digits and contain only numbers.')
@@ -67,7 +65,7 @@ function Account() {
       setIsEditingProfile(false)
       setProfileForm((prev) => ({ ...prev, password: '' }))
     } catch (error) {
-      // Error is already handled in updateProfile
+      // Error handled in updateProfile
     } finally {
       setProfileSubmitting(false)
     }
@@ -88,27 +86,18 @@ function Account() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    // Validate price_rupees and price_timecredits as positive numbers (> 0)
     if (form.price_rupees) {
       const p = Number(form.price_rupees)
-      if (isNaN(p) || !isFinite(p)) {
-        alert('Price (₹) must be a valid number.')
-        return
-      }
-      if (p <= 0) {
-        alert('Price (₹) must be greater than 0.')
+      if (isNaN(p) || !isFinite(p) || p <= 0) {
+        alert('Price (₹) must be a valid number greater than 0.')
         return
       }
     }
 
     if (form.price_timecredits) {
       const t = Number(form.price_timecredits)
-      if (isNaN(t) || !isFinite(t)) {
-        alert('Time Credits must be a valid number.')
-        return
-      }
-      if (t <= 0) {
-        alert('Time Credits must be greater than 0.')
+      if (isNaN(t) || !isFinite(t) || t <= 0) {
+        alert('Time Credits must be a valid number greater than 0.')
         return
       }
     }
@@ -131,187 +120,205 @@ function Account() {
     }
   }
 
+  if (!isAuthenticated) {
+    return (
+      <section className="section" style={{ paddingTop: '4rem' }}>
+        <div className="container">
+          <div className="empty-state">
+            <h2 className="mb-2">Sign in to view your profile</h2>
+            <Link to="/" className="primary-btn accent">Go to Home</Link>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className="section">
-      <div className="container section-grid two-column">
-        <article className="card">
-          <div className="card-header">
-            <div>
-              <p className="eyebrow">Profile</p>
-              <h2>Your account snapshot</h2>
-            </div>
-            <p className="badge">TC {profile?.time_credits ?? 0}</p>
+      <div className="container editorial-grid">
+        <div className="editorial-main">
+          <div className="section-header mb-8">
+            <h1 className="display-text">Your Profile</h1>
           </div>
-          {isAuthenticated && profile ? (
-            isEditingProfile ? (
-              <form className="stack" onSubmit={handleProfileSubmit}>
-                <label>
-                  Username
-                  <input
-                    type="text"
-                    value={profileForm.username}
-                    onChange={(e) => setProfileForm((prev) => ({ ...prev, username: e.target.value }))}
-                    required
-                    placeholder="jane_doe"
-                  />
-                </label>
-                <label>
-                  Email
-                  <input
-                    type="email"
-                    value={profileForm.email}
-                    onChange={(e) => setProfileForm((prev) => ({ ...prev, email: e.target.value }))}
-                    placeholder="jane@example.com"
-                  />
-                </label>
-                <label>
-                  Phone
-                  <input
-                    type="tel"
-                    value={profileForm.phone}
-                    onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))}
-                    placeholder="+91 98765 43210"
-                  />
-                </label>
-                <label>
-                  UPI ID
-                  <input
-                    type="text"
-                    value={profileForm.upi_id}
-                    onChange={(e) => setProfileForm((prev) => ({ ...prev, upi_id: e.target.value }))}
-                    placeholder="seller@upi"
-                  />
-                </label>
-                {/* UPI QR upload removed — UPI ID is handled as text only */}
-                <label>
-                  Bio
+
+          <div className="object-panel mb-8" style={{ background: 'var(--bg-primary)' }}>
+            <div className="flex-between mb-6">
+              <h2 style={{ fontSize: '1.5rem' }}>Identity</h2>
+              <div className="badge accent" style={{ fontSize: '1rem', padding: '0.4rem 0.8rem' }}>
+                {profile?.time_credits ?? 0} Time Credits
+              </div>
+            </div>
+
+            {isEditingProfile ? (
+              <form className="record-list" onSubmit={handleProfileSubmit}>
+                <div className="grid-2 mb-6">
+                  <div className="input-group mb-0">
+                    <label>Username</label>
+                    <input
+                      type="text"
+                      value={profileForm.username}
+                      onChange={(e) => setProfileForm((prev) => ({ ...prev, username: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="input-group mb-0">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      value={profileForm.email}
+                      onChange={(e) => setProfileForm((prev) => ({ ...prev, email: e.target.value }))}
+                    />
+                  </div>
+                  <div className="input-group mb-0">
+                    <label>Phone</label>
+                    <input
+                      type="tel"
+                      value={profileForm.phone}
+                      onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))}
+                    />
+                  </div>
+                  <div className="input-group mb-0">
+                    <label>UPI ID</label>
+                    <input
+                      type="text"
+                      value={profileForm.upi_id}
+                      onChange={(e) => setProfileForm((prev) => ({ ...prev, upi_id: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="input-group mb-6">
+                  <label>Bio</label>
                   <textarea
-                    rows={3}
+                    rows={4}
                     value={profileForm.bio}
                     onChange={(e) => setProfileForm((prev) => ({ ...prev, bio: e.target.value }))}
-                    placeholder="Tell us about yourself..."
+                    placeholder="Tell us about your background and skills..."
                   />
-                </label>
-                <label>
-                  Password (required to update)
+                </div>
+
+                <div className="input-group mb-6" style={{ maxWidth: '300px' }}>
+                  <label>Current Password <span className="text-accent">*</span></label>
                   <input
                     type="password"
                     value={profileForm.password}
                     onChange={(e) => setProfileForm((prev) => ({ ...prev, password: e.target.value }))}
                     required
-                    placeholder="Enter your password"
+                    placeholder="Verify to save changes"
                   />
-                </label>
-                <div className="action-row">
+                </div>
+
+                <div className="flex-row pt-4" style={{ borderTop: '1px solid var(--border)' }}>
                   <button type="button" className="ghost-btn" onClick={handleProfileCancel} disabled={profileSubmitting}>
                     Cancel
                   </button>
-                  <button type="submit" className="primary-btn" disabled={profileSubmitting}>
-                    {profileSubmitting ? 'Updating…' : 'Update profile'}
+                  <button type="submit" className="primary-btn accent" disabled={profileSubmitting}>
+                    {profileSubmitting ? 'Saving...' : 'Save Profile'}
                   </button>
                 </div>
               </form>
             ) : (
-              <>
-                <div className="profile-grid">
+              <div>
+                <div className="grid-2 mb-6">
                   <div>
-                    <p className="eyebrow">Username</p>
-                    <p>{profile.username}</p>
+                    <div className="metadata mb-1">Username</div>
+                    <div style={{ fontWeight: 500, fontSize: '1.1rem' }}>{profile.username}</div>
                   </div>
                   <div>
-                    <p className="eyebrow">Email</p>
-                    <p>{profile.email || '—'}</p>
+                    <div className="metadata mb-1">Email</div>
+                    <div>{profile.email || '—'}</div>
                   </div>
                   <div>
-                    <p className="eyebrow">Phone</p>
-                    <p>{profile.phone || '—'}</p>
+                    <div className="metadata mb-1">Phone</div>
+                    <div>{profile.phone || '—'}</div>
                   </div>
                   <div>
-                    <p className="eyebrow">UPI ID</p>
-                    <p>{profile.upi_id || '—'}</p>
-                  </div>
-                  {/* UPI QR display removed — UPI ID is shown as text above */}
-                  <div>
-                    <p className="eyebrow">Bio</p>
-                    <p>{profile.bio || 'Add a short bio.'}</p>
+                    <div className="metadata mb-1">UPI ID</div>
+                    <div>{profile.upi_id || '—'}</div>
                   </div>
                 </div>
-                <div className="action-row" style={{ marginTop: '1rem' }}>
-                  <button className="primary-btn" onClick={() => setIsEditingProfile(true)}>
-                    Edit profile
+                
+                <div className="mb-6 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
+                  <div className="metadata mb-2">Bio & Experience</div>
+                  <p style={{ lineHeight: 1.6, maxWidth: '600px', margin: 0 }}>
+                    {profile.bio || 'No bio provided. Edit your profile to add one.'}
+                  </p>
+                </div>
+
+                <div className="pt-4">
+                  <button className="secondary-btn" onClick={() => setIsEditingProfile(true)}>
+                    Edit Profile Details
                   </button>
                 </div>
-              </>
-            )
-          ) : (
-            <p className="hint">
-              Sign in to view your profile. Use the <Link to="/">home page</Link> to register or log into your account.
-            </p>
-          )}
-        </article>
+              </div>
+            )}
+          </div>
+        </div>
 
-        <article className="card">
-          <p className="eyebrow">Share a skill</p>
-          <h2>Post a new listing</h2>
-          <form className="stack" onSubmit={handleSubmit}>
-            <label>
-              Title
-              <input
-                value={form.title}
-                onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-                placeholder="Full-stack mentorship session"
-                required
-              />
-            </label>
-            <label>
-              Description
-              <textarea
-                rows={3}
-                value={form.description}
-                onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-                placeholder="Describe what you offer…"
-                required
-              />
-            </label>
-            <label>
-              Location
-              <input
-                value={form.location}
-                onChange={(event) => setForm((prev) => ({ ...prev, location: event.target.value }))}
-                placeholder="Hybrid / Bengaluru"
-              />
-            </label>
-            <div className="split">
-              <label>
-                Price (₹)
+        <div className="editorial-side">
+          <div className="object-panel">
+            <h3 className="mb-6">Offer a skill</h3>
+            <form className="record-list" onSubmit={handleSubmit}>
+              <div className="input-group mb-4">
+                <label>Skill Title</label>
                 <input
-                  type="number"
+                  value={form.title}
+                  onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="e.g. Graphic Design Help"
+                  required
+                />
+              </div>
+              <div className="input-group mb-4">
+                <label>Description</label>
+                <textarea
+                  rows={4}
+                  value={form.description}
+                  onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="What exactly will you provide?"
+                  required
+                />
+              </div>
+              <div className="input-group mb-4">
+                <label>Location</label>
+                <input
+                  value={form.location}
+                  onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
+                  placeholder="e.g. Remote or Local"
+                />
+              </div>
+              
+              <div className="grid-2 mb-6" style={{ gap: '1rem' }}>
+                <div className="input-group mb-0">
+                  <label>Price (₹)</label>
+                  <input
+                    type="number"
                     min="0.01"
                     step="0.01"
-                  value={form.price_rupees}
-                  onChange={(event) => setForm((prev) => ({ ...prev, price_rupees: event.target.value }))}
-                />
-              </label>
-              <label>
-                Time Credits
-                <input
-                  type="number"
+                    value={form.price_rupees}
+                    onChange={(e) => setForm((prev) => ({ ...prev, price_rupees: e.target.value }))}
+                  />
+                </div>
+                <div className="input-group mb-0">
+                  <label>Time Credits</label>
+                  <input
+                    type="number"
                     min="0.01"
                     step="0.01"
-                  value={form.price_timecredits}
-                  onChange={(event) => setForm((prev) => ({ ...prev, price_timecredits: event.target.value }))}
-                />
-              </label>
-            </div>
-            <button className="primary-btn" type="submit" disabled={!isAuthenticated || submitting}>
-              {!isAuthenticated ? 'Sign in to publish' : submitting ? 'Publishing…' : 'Publish listing'}
-            </button>
-          </form>
-        </article>
+                    value={form.price_timecredits}
+                    onChange={(e) => setForm((prev) => ({ ...prev, price_timecredits: e.target.value }))}
+                  />
+                </div>
+              </div>
+              
+              <button className="primary-btn" type="submit" disabled={submitting}>
+                {submitting ? 'Publishing...' : 'Publish Listing'}
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
     </section>
   )
 }
 
 export default Account
-

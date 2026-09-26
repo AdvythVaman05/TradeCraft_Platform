@@ -1,18 +1,16 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, Link } from 'react-router-dom'
 import { useAppContext } from '../context/AppContext.jsx'
 import ChatDrawer from './ChatDrawer.jsx'
 
 const navLinks = [
-  { to: '/', label: 'Home' },
-  { to: '/listings', label: 'Listings' },
+  { to: '/listings', label: 'Discover' },
   { to: '/transactions', label: 'Transactions' },
-  { to: '/seller', label: 'Seller Dashboard' },
-  { to: '/account', label: 'Account' },
+  { to: '/seller', label: 'Workspace' },
 ]
 
 function Layout() {
   const {
-    state: { toast, stats, isAuthenticated, demoMode },
+    state: { toast, isAuthenticated, profile, demoMode },
     api: { logout },
   } = useAppContext()
 
@@ -20,43 +18,45 @@ function Layout() {
     <div className="app-shell">
       <header className="site-header">
         <div className="container header-grid">
-          <div className="logo">
+          <Link to="/" className="logo">
             <span className="logo-mark">TC</span>
-            <div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
               <p className="logo-title">TradeCraft</p>
-              <p className="logo-tagline">Skill exchange marketplace</p>
             </div>
-          </div>
+          </Link>
+          
           <nav>
             {navLinks.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
                 className={({ isActive }) => (isActive ? 'active' : undefined)}
-                end={link.to === '/'}
               >
                 {link.label}
               </NavLink>
             ))}
           </nav>
+          
           <div className="header-actions">
-            <div className="stat-pill">
-              <span>Listings</span>
-              <strong>{stats.listings}</strong>
-            </div>
-            <div className="stat-pill">
-              <span>Transactions</span>
-              <strong>{stats.transactions}</strong>
-            </div>
-            {demoMode && <span className="badge soft">Demo</span>}
+            {demoMode && <span className="badge">Demo Mode</span>}
+            
             {isAuthenticated ? (
-              <button className="ghost-btn" onClick={logout}>
-                Logout
-              </button>
+              <>
+                <span className="metadata" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ color: 'var(--text-primary)' }}>{profile?.username}</span>
+                  <span className="badge accent">{profile?.time_credits ?? 0} TC</span>
+                </span>
+                <Link to="/account" className="ghost-btn" style={{ padding: '0.4rem 0.75rem', fontSize: '0.9rem' }}>
+                  Profile
+                </Link>
+                <button className="secondary-btn" onClick={logout} style={{ padding: '0.4rem 0.75rem', fontSize: '0.9rem' }}>
+                  Logout
+                </button>
+              </>
             ) : (
-              <NavLink to="/" className="ghost-btn">
+              <Link to="/" className="primary-btn accent" style={{ padding: '0.4rem 1rem', fontSize: '0.9rem' }}>
                 Sign in
-              </NavLink>
+              </Link>
             )}
           </div>
         </div>
@@ -67,14 +67,23 @@ function Layout() {
       </main>
 
       <footer className="site-footer">
-        <div className="container">
-          <p>© {new Date().getFullYear()} TradeCraft Platform</p>
+        <div className="container site-footer-grid">
+          <div>
+            <div className="logo-mark mb-2" style={{ fontSize: '1.25rem' }}>TC</div>
+            <p className="mb-0">TradeCraft &copy; {new Date().getFullYear()}</p>
+            <p className="metadata mt-1">Community skill exchange platform</p>
+          </div>
+          <div className="footer-links">
+            <a href="#terms">Terms of Service</a>
+            <a href="#privacy">Privacy Policy</a>
+            <a href="#help">Help & Support</a>
+          </div>
         </div>
       </footer>
 
       {toast && (
         <div className={`toast ${toast.variant}`}>
-          <p>{toast.message}</p>
+          {toast.message}
         </div>
       )}
       <ChatDrawer />
@@ -83,4 +92,3 @@ function Layout() {
 }
 
 export default Layout
-
