@@ -1,31 +1,22 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { useAppContext } from '../context/AppContext.jsx'
+import { Settings, Plus, MapPin } from 'lucide-react'
 
 function Account() {
   const {
-    state: { profile, isAuthenticated },
+    state: { profile, isAuthenticated, transactions, listings },
     api: { createListing, updateProfile },
   } = useAppContext()
 
   const [profileForm, setProfileForm] = useState({
-    username: '',
-    email: '',
-    phone: '',
-    upi_id: '',
-    bio: '',
-    password: '',
+    username: '', email: '', phone: '', upi_id: '', bio: '', password: '',
   })
   const [isEditingProfile, setIsEditingProfile] = useState(false)
-  const [profileSubmitting, setProfileSubmitting] = useState(false)
-
-  const [form, setForm] = useState({
-    title: '',
-    description: '',
-    location: '',
-    price_rupees: '',
-    price_timecredits: '',
-  })
+  const [isOffering, setIsOffering] = useState(false)
+  
+  const [form, setForm] = useState({ title: '', description: '', location: '', price_rupees: '', price_timecredits: '' })
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -41,66 +32,17 @@ function Account() {
     }
   }, [profile])
 
-  const handleProfileSubmit = async (event) => {
-    event.preventDefault()
-    const phone = profileForm.phone.trim()
-    if (phone && (!/^\d{10}$/.test(phone))) {
-      alert('Phone number must be exactly 10 digits and contain only numbers.')
-      return
-    }
-    if (!profileForm.password) {
-      alert('Please enter your password to update your profile.')
-      return
-    }
-    setProfileSubmitting(true)
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault()
     try {
-      await updateProfile({
-        username: profileForm.username,
-        email: profileForm.email,
-        phone: profileForm.phone,
-        bio: profileForm.bio,
-        password: profileForm.password,
-        upi_id: profileForm.upi_id,
-      })
+      await updateProfile({ ...profileForm })
       setIsEditingProfile(false)
-      setProfileForm((prev) => ({ ...prev, password: '' }))
-    } catch (error) {
-      // Error handled in updateProfile
-    } finally {
-      setProfileSubmitting(false)
-    }
+      setProfileForm(p => ({ ...p, password: '' }))
+    } catch (error) {}
   }
 
-  const handleProfileCancel = () => {
-    if (profile) {
-      setProfileForm({
-        username: profile.username || '',
-        email: profile.email || '',
-        phone: profile.phone || '',
-        bio: profile.bio || '',
-        password: '',
-      })
-    }
-    setIsEditingProfile(false)
-  }
-
-  const handleSubmit = async (event) => {
-    event.preventDefault()
-    if (form.price_rupees) {
-      const p = Number(form.price_rupees)
-      if (isNaN(p) || !isFinite(p) || p <= 0) {
-        alert('Price (₹) must be a valid number greater than 0.')
-        return
-      }
-    }
-
-    if (form.price_timecredits) {
-      const t = Number(form.price_timecredits)
-      if (isNaN(t) || !isFinite(t) || t <= 0) {
-        alert('Time Credits must be a valid number greater than 0.')
-        return
-      }
-    }
+  const handleSubmitListing = async (e) => {
+    e.preventDefault()
     setSubmitting(true)
     try {
       await createListing({
@@ -108,216 +50,162 @@ function Account() {
         price_rupees: form.price_rupees || null,
         price_timecredits: form.price_timecredits || null,
       })
-      setForm({
-        title: '',
-        description: '',
-        location: '',
-        price_rupees: '',
-        price_timecredits: '',
-      })
+      setForm({ title: '', description: '', location: '', price_rupees: '', price_timecredits: '' })
+      setIsOffering(false)
     } finally {
       setSubmitting(false)
     }
   }
 
-  if (!isAuthenticated) {
-    return (
-      <section className="section" style={{ paddingTop: '4rem' }}>
-        <div className="container">
-          <div className="empty-state">
-            <h2 className="mb-2">Sign in to view your profile</h2>
-            <Link to="/" className="primary-btn accent">Go to Home</Link>
-          </div>
-        </div>
-      </section>
-    )
-  }
+  if (!isAuthenticated) return (
+    <div className="flex-column flex-center" style={{ flex: 1, padding: '4rem 0' }}>
+      <h2 className="title-1 mb-2">Sign in to view your profile</h2>
+      <Link to="/auth" className="btn btn-primary mt-2">Sign In</Link>
+    </div>
+  )
+
+  const myActiveListings = listings.filter(l => l.provider?.id === profile?.id)
+  const myCompletedExchanges = transactions.filter(t => t.seller_verified)
 
   return (
-    <section className="section">
-      <div className="container editorial-grid">
-        <div className="editorial-main">
-          <div className="section-header mb-8">
-            <h1 className="display-text">Your Profile</h1>
-          </div>
-
-          <div className="object-panel mb-8" style={{ background: 'var(--bg-primary)' }}>
-            <div className="flex-between mb-6">
-              <h2 style={{ fontSize: '1.5rem' }}>Identity</h2>
-              <div className="badge accent" style={{ fontSize: '1rem', padding: '0.4rem 0.8rem' }}>
-                {profile?.time_credits ?? 0} Time Credits
-              </div>
-            </div>
-
-            {isEditingProfile ? (
-              <form className="record-list" onSubmit={handleProfileSubmit}>
-                <div className="grid-2 mb-6">
-                  <div className="input-group mb-0">
-                    <label>Username</label>
-                    <input
-                      type="text"
-                      value={profileForm.username}
-                      onChange={(e) => setProfileForm((prev) => ({ ...prev, username: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div className="input-group mb-0">
-                    <label>Email</label>
-                    <input
-                      type="email"
-                      value={profileForm.email}
-                      onChange={(e) => setProfileForm((prev) => ({ ...prev, email: e.target.value }))}
-                    />
-                  </div>
-                  <div className="input-group mb-0">
-                    <label>Phone</label>
-                    <input
-                      type="tel"
-                      value={profileForm.phone}
-                      onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))}
-                    />
-                  </div>
-                  <div className="input-group mb-0">
-                    <label>UPI ID</label>
-                    <input
-                      type="text"
-                      value={profileForm.upi_id}
-                      onChange={(e) => setProfileForm((prev) => ({ ...prev, upi_id: e.target.value }))}
-                    />
-                  </div>
-                </div>
-
-                <div className="input-group mb-6">
-                  <label>Bio</label>
-                  <textarea
-                    rows={4}
-                    value={profileForm.bio}
-                    onChange={(e) => setProfileForm((prev) => ({ ...prev, bio: e.target.value }))}
-                    placeholder="Tell us about your background and skills..."
-                  />
-                </div>
-
-                <div className="input-group mb-6" style={{ maxWidth: '300px' }}>
-                  <label>Current Password <span className="text-accent">*</span></label>
-                  <input
-                    type="password"
-                    value={profileForm.password}
-                    onChange={(e) => setProfileForm((prev) => ({ ...prev, password: e.target.value }))}
-                    required
-                    placeholder="Verify to save changes"
-                  />
-                </div>
-
-                <div className="flex-row pt-4" style={{ borderTop: '1px solid var(--border)' }}>
-                  <button type="button" className="ghost-btn" onClick={handleProfileCancel} disabled={profileSubmitting}>
-                    Cancel
-                  </button>
-                  <button type="submit" className="primary-btn accent" disabled={profileSubmitting}>
-                    {profileSubmitting ? 'Saving...' : 'Save Profile'}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div>
-                <div className="grid-2 mb-6">
-                  <div>
-                    <div className="metadata mb-1">Username</div>
-                    <div style={{ fontWeight: 500, fontSize: '1.1rem' }}>{profile.username}</div>
-                  </div>
-                  <div>
-                    <div className="metadata mb-1">Email</div>
-                    <div>{profile.email || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="metadata mb-1">Phone</div>
-                    <div>{profile.phone || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="metadata mb-1">UPI ID</div>
-                    <div>{profile.upi_id || '—'}</div>
-                  </div>
+    <div style={{ flex: 1, padding: '4rem 0' }}>
+      <div className="container page-grid has-sidebar">
+        
+        <div>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex-column gap-4"
+          >
+            {/* Header Profile */}
+            <div className="surface" style={{ padding: '3rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '120px', background: 'var(--accent-teal)', borderBottom: '1px solid var(--border-light)' }} />
+              
+              <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'flex-end', gap: '2rem', marginTop: '40px' }}>
+                <div style={{ 
+                  width: 120, height: 120, borderRadius: '24px', background: 'var(--bg-primary)', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem', fontWeight: 700, 
+                  color: 'var(--accent-teal)', boxShadow: 'var(--shadow-md)', border: '4px solid var(--bg-surface)' 
+                }}>
+                  {profile.username.charAt(0).toUpperCase()}
                 </div>
                 
-                <div className="mb-6 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
-                  <div className="metadata mb-2">Bio & Experience</div>
-                  <p style={{ lineHeight: 1.6, maxWidth: '600px', margin: 0 }}>
-                    {profile.bio || 'No bio provided. Edit your profile to add one.'}
+                <div style={{ flex: 1, paddingBottom: '0.5rem' }}>
+                  <h1 className="display-2" style={{ marginBottom: '0.25rem' }}>{profile.username}</h1>
+                  <div className="text-muted flex-center" style={{ justifyContent: 'flex-start', gap: '1rem' }}>
+                    <span>Community Member</span>
+                    <span>&middot;</span>
+                    <span className="flex-center gap-1"><MapPin size={14}/> India</span>
+                  </div>
+                </div>
+
+                <button className="btn btn-outline" onClick={() => setIsEditingProfile(!isEditingProfile)}>
+                  <Settings size={18} /> Settings
+                </button>
+              </div>
+
+              {isEditingProfile ? (
+                <motion.form 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="flex-column gap-3" 
+                  style={{ marginTop: '3rem', paddingTop: '3rem', borderTop: '1px solid var(--border-light)' }}
+                  onSubmit={handleProfileSubmit}
+                >
+                  <h3 className="title-3">Edit Profile</h3>
+                  <div className="page-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                    <div className="input-group"><label>Username</label><input value={profileForm.username} onChange={e => setProfileForm(p => ({...p, username: e.target.value}))} /></div>
+                    <div className="input-group"><label>Email</label><input type="email" value={profileForm.email} onChange={e => setProfileForm(p => ({...p, email: e.target.value}))} /></div>
+                    <div className="input-group"><label>Phone</label><input type="tel" value={profileForm.phone} onChange={e => setProfileForm(p => ({...p, phone: e.target.value}))} /></div>
+                    <div className="input-group"><label>UPI ID</label><input value={profileForm.upi_id} onChange={e => setProfileForm(p => ({...p, upi_id: e.target.value}))} /></div>
+                  </div>
+                  <div className="input-group"><label>Bio</label><textarea rows={3} value={profileForm.bio} onChange={e => setProfileForm(p => ({...p, bio: e.target.value}))} /></div>
+                  <div className="input-group"><label>Password (to confirm)</label><input type="password" required value={profileForm.password} onChange={e => setProfileForm(p => ({...p, password: e.target.value}))} /></div>
+                  <div className="flex-center" style={{ gap: '1rem', justifyContent: 'flex-end' }}>
+                    <button type="button" className="btn btn-ghost" onClick={() => setIsEditingProfile(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary">Save Profile</button>
+                  </div>
+                </motion.form>
+              ) : (
+                <div style={{ marginTop: '3rem', maxWidth: '600px' }}>
+                  <h3 className="title-3" style={{ marginBottom: '1rem' }}>About me</h3>
+                  <p className="text-muted" style={{ fontSize: '1.1rem', lineHeight: 1.8 }}>
+                    {profile.bio || "This user hasn't written a bio yet."}
                   </p>
                 </div>
+              )}
+            </div>
 
-                <div className="pt-4">
-                  <button className="secondary-btn" onClick={() => setIsEditingProfile(true)}>
-                    Edit Profile Details
-                  </button>
-                </div>
+            {/* Offerings Section */}
+            <div>
+              <div className="flex-between" style={{ marginBottom: '1.5rem', marginTop: '2rem' }}>
+                <h2 className="title-2">What I can help with</h2>
+                <button className="btn btn-primary" onClick={() => setIsOffering(!isOffering)}>
+                  <Plus size={18} /> Offer a Skill
+                </button>
               </div>
-            )}
-          </div>
+
+              {isOffering && (
+                <motion.form 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="surface flex-column gap-3 mb-4" 
+                  onSubmit={handleSubmitListing}
+                >
+                  <h3 className="title-3">New Offering</h3>
+                  <div className="input-group"><label>Title</label><input required value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} placeholder="e.g. React Mentorship" /></div>
+                  <div className="input-group"><label>Description</label><textarea required rows={3} value={form.description} onChange={e => setForm(p => ({...p, description: e.target.value}))} /></div>
+                  <div className="page-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+                    <div className="input-group"><label>Location</label><input value={form.location} onChange={e => setForm(p => ({...p, location: e.target.value}))} /></div>
+                    <div className="input-group"><label>Price (₹)</label><input type="number" step="0.01" value={form.price_rupees} onChange={e => setForm(p => ({...p, price_rupees: e.target.value}))} /></div>
+                    <div className="input-group"><label>Time Credits</label><input type="number" step="0.01" value={form.price_timecredits} onChange={e => setForm(p => ({...p, price_timecredits: e.target.value}))} /></div>
+                  </div>
+                  <div className="flex-center" style={{ gap: '1rem', justifyContent: 'flex-end' }}>
+                    <button type="button" className="btn btn-ghost" onClick={() => setIsOffering(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={submitting}>Publish</button>
+                  </div>
+                </motion.form>
+              )}
+
+              {myActiveListings.length === 0 && !isOffering ? (
+                <div className="surface" style={{ padding: '3rem', textAlign: 'center', borderStyle: 'dashed' }}>
+                  <p className="text-muted">You haven't offered any skills yet.</p>
+                </div>
+              ) : (
+                <div className="flex-column gap-3">
+                  {myActiveListings.map(listing => (
+                    <div key={listing.id} className="surface flex-between" style={{ padding: '1.5rem' }}>
+                      <div>
+                        <h3 className="title-3" style={{ marginBottom: '0.25rem' }}>{listing.title}</h3>
+                        <div className="text-muted">{listing.description}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </motion.div>
         </div>
 
-        <div className="editorial-side">
-          <div className="object-panel">
-            <h3 className="mb-6">Offer a skill</h3>
-            <form className="record-list" onSubmit={handleSubmit}>
-              <div className="input-group mb-4">
-                <label>Skill Title</label>
-                <input
-                  value={form.title}
-                  onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                  placeholder="e.g. Graphic Design Help"
-                  required
-                />
-              </div>
-              <div className="input-group mb-4">
-                <label>Description</label>
-                <textarea
-                  rows={4}
-                  value={form.description}
-                  onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                  placeholder="What exactly will you provide?"
-                  required
-                />
-              </div>
-              <div className="input-group mb-4">
-                <label>Location</label>
-                <input
-                  value={form.location}
-                  onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
-                  placeholder="e.g. Remote or Local"
-                />
-              </div>
-              
-              <div className="grid-2 mb-6" style={{ gap: '1rem' }}>
-                <div className="input-group mb-0">
-                  <label>Price (₹)</label>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={form.price_rupees}
-                    onChange={(e) => setForm((prev) => ({ ...prev, price_rupees: e.target.value }))}
-                  />
-                </div>
-                <div className="input-group mb-0">
-                  <label>Time Credits</label>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={form.price_timecredits}
-                    onChange={(e) => setForm((prev) => ({ ...prev, price_timecredits: e.target.value }))}
-                  />
-                </div>
-              </div>
-              
-              <button className="primary-btn" type="submit" disabled={submitting}>
-                {submitting ? 'Publishing...' : 'Publish Listing'}
-              </button>
-            </form>
-          </div>
+        {/* Sidebar */}
+        <div>
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="surface flex-column gap-4" 
+            style={{ position: 'sticky', top: '100px', background: 'var(--bg-dark)', color: 'white', border: 'none' }}
+          >
+            <div>
+              <div style={{ color: 'var(--accent-coral)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.8rem', fontWeight: 600 }}>Stats</div>
+              <div className="title-1">{myActiveListings.length} Active Skills</div>
+              <div className="title-1">{myCompletedExchanges.length} Exchanges</div>
+            </div>
+          </motion.div>
         </div>
+
       </div>
-    </section>
+    </div>
   )
 }
 

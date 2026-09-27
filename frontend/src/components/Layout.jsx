@@ -1,11 +1,16 @@
-import { NavLink, Outlet, Link } from 'react-router-dom'
+import { NavLink, Outlet, Link, useLocation } from 'react-router-dom'
 import { useAppContext } from '../context/AppContext.jsx'
 import ChatDrawer from './ChatDrawer.jsx'
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion'
 
-const navLinks = [
-  { to: '/listings', label: 'Discover' },
-  { to: '/transactions', label: 'Transactions' },
-  { to: '/seller', label: 'Workspace' },
+const authenticatedNav = [
+  { to: '/discover', label: 'Discover' },
+  { to: '/exchanges', label: 'My Exchanges' },
+  { to: '/workspace', label: 'Workspace' },
+]
+
+const anonymousNav = [
+  { to: '/discover', label: 'Discover' },
 ]
 
 function Layout() {
@@ -13,48 +18,57 @@ function Layout() {
     state: { toast, isAuthenticated, profile, demoMode },
     api: { logout },
   } = useAppContext()
+  const location = useLocation()
+
+  const links = isAuthenticated ? authenticatedNav : anonymousNav
 
   return (
-    <div className="app-shell">
+    <MotionConfig reducedMotion="user">
+      <div className="app-shell">
       <header className="site-header">
-        <div className="container header-grid">
-          <Link to="/" className="logo">
-            <span className="logo-mark">TC</span>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <p className="logo-title">TradeCraft</p>
-            </div>
+        <div className="container header-inner">
+          <Link to="/" className="logo-link">
+            <motion.img 
+              src="/logo.jpg" 
+              alt="TradeCraft Mark" 
+              className="logo-img"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+            />
+            <span className="logo-text">TradeCraft</span>
           </Link>
           
-          <nav>
-            {navLinks.map((link) => (
+          <nav className="nav-links">
+            {links.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
-                className={({ isActive }) => (isActive ? 'active' : undefined)}
+                className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
               >
                 {link.label}
               </NavLink>
             ))}
           </nav>
           
-          <div className="header-actions">
-            {demoMode && <span className="badge">Demo Mode</span>}
+          <div className="nav-links">
+            {demoMode && <span className="tag amber">Demo Mode</span>}
             
             {isAuthenticated ? (
               <>
-                <span className="metadata" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ color: 'var(--text-primary)' }}>{profile?.username}</span>
-                  <span className="badge accent">{profile?.time_credits ?? 0} TC</span>
-                </span>
-                <Link to="/account" className="ghost-btn" style={{ padding: '0.4rem 0.75rem', fontSize: '0.9rem' }}>
-                  Profile
+                <Link to="/profile" className="tc-pill" style={{ textDecoration: 'none' }}>
+                  <span className="tc-label">TC</span>
+                  {profile?.time_credits ?? 0}
                 </Link>
-                <button className="secondary-btn" onClick={logout} style={{ padding: '0.4rem 0.75rem', fontSize: '0.9rem' }}>
-                  Logout
+                <Link to="/profile" className="nav-link">
+                  {profile?.username}
+                </Link>
+                <button className="btn btn-ghost" onClick={logout}>
+                  Sign out
                 </button>
               </>
             ) : (
-              <Link to="/" className="primary-btn accent" style={{ padding: '0.4rem 1rem', fontSize: '0.9rem' }}>
+              <Link to="/auth" className="btn btn-primary">
                 Sign in
               </Link>
             )}
@@ -62,32 +76,48 @@ function Layout() {
         </div>
       </header>
 
-      <main className="content">
-        <Outlet />
+      <main className="content" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </main>
 
-      <footer className="site-footer">
-        <div className="container site-footer-grid">
-          <div>
-            <div className="logo-mark mb-2" style={{ fontSize: '1.25rem' }}>TC</div>
-            <p className="mb-0">TradeCraft &copy; {new Date().getFullYear()}</p>
-            <p className="metadata mt-1">Community skill exchange platform</p>
+      <footer style={{ padding: '3rem 0', background: 'var(--bg-dark)', color: 'rgba(255,255,255,0.7)', marginTop: 'auto' }}>
+        <div className="container flex-between">
+          <div className="flex-center gap-2">
+            <img src="/logo.jpg" alt="TC" style={{ width: 24, height: 24, borderRadius: 6, opacity: 0.5 }} />
+            <span>TradeCraft &copy; {new Date().getFullYear()}</span>
           </div>
-          <div className="footer-links">
-            <a href="#terms">Terms of Service</a>
-            <a href="#privacy">Privacy Policy</a>
-            <a href="#help">Help & Support</a>
+          <div className="flex-center gap-3">
+            <span>Community Skill Exchange</span>
           </div>
         </div>
       </footer>
 
-      {toast && (
-        <div className={`toast ${toast.variant}`}>
-          {toast.message}
-        </div>
-      )}
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            className={`toast ${toast.variant}`}
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+          >
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
       <ChatDrawer />
     </div>
+    </MotionConfig>
   )
 }
 
